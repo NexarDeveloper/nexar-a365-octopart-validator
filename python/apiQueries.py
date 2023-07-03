@@ -1,22 +1,13 @@
 import os
 from nexarClient.nexarDesignClient import NexarClient
 
-workspaces_query = """
-query workspaces {
+workspace_projects = """
+query explorer {
     desWorkspaces {
         id
         name
         url
-    }
-}
-"""
-
-projects_query = """
-query projects ($workspaceUrl: String!){
-    desProjects (
-        workspaceUrl: $workspaceUrl
-    ){
-        nodes {
+        projects {
             id
             name
         }
@@ -24,7 +15,7 @@ query projects ($workspaceUrl: String!){
 }
 """
 
-project_releases_query = """
+release_variants = """
 query project_releases ($projectId: ID!){
     desProjectById (
         id: $projectId
@@ -37,6 +28,9 @@ query project_releases ($projectId: ID!){
                     id
                     description
                     releaseId
+                    variants {
+                        name
+                    }
                 }
             }
         }
@@ -44,14 +38,46 @@ query project_releases ($projectId: ID!){
 }
 """
 
-release_variants_query = """
-query release_variants ($releaseId: ID!) {
+variant_bom = """
+query release_variants ($releaseId: ID!, $variantName: String) {
     desReleaseById (
         id: $releaseId
     ) {
         id
-        variants {
+        variants (
+            where: {
+                name: {
+                    eq: $variantName
+                }
+            }
+        ){
             name
+            bom {
+                id
+                bomItems {
+                    bomItemInstances {
+                        designator
+                        isFitted
+                    }
+                    quantity
+                    component {
+                        id
+                        name
+                        comment
+                        description
+                        manufacturerParts {
+                            companyName
+                            partNumber
+                            priority
+                            octopartId
+                            supplierParts {
+                                partNumber
+                                companyName
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -62,23 +88,18 @@ client_secret = os.environ["NEXAR_CLIENT_SECRET"]
 nexar = NexarClient(client_id, client_secret, ["supply.domain", "design.domain", "openid", "user.access"])
 
 def get_workspaces():
-    response = nexar.get_query(workspaces_query)
+    response = nexar.get_query(workspace_projects)
     return response.get("desWorkspaces")
 
-def get_projects(workspace_url):
-    response = nexar.get_query(projects_query, {
-        "workspaceUrl": workspace_url
-    })
-    return response.get("desProjects").get("nodes")
-
-def get_project_releases(project_id):
-    response = nexar.get_query(project_releases_query, {
-        "projectId": project_id
+def get_releases(projectId):
+    response = nexar.get_query(release_variants, {
+        "projectId": projectId
     })
     return response.get("desProjectById").get("design").get("releases").get("nodes")
 
-def get_release_variants(release_id):
-    response = nexar.get_query(release_variants_query, {
-        "releaseId": release_id
+def get_bom(releaseId, variantName):
+    response = nexar.get_query(variant_bom, {
+        "releaseId": releaseId,
+        "variantName": variantName
     })
-    return response.get("desReleaseById").get("variants")
+    return response.get("desReleaseById").get("variants")[0].get("bom")
