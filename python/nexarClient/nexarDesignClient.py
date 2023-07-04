@@ -6,7 +6,6 @@ import base64
 import json
 import time
 
-from cachetools import cached
 from typing import Callable, Dict, Iterator
 from requests_toolbelt import MultipartEncoder
 from .nexarToken import get_token

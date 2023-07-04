@@ -1,4 +1,11 @@
-# nexar-multi-match-search
+# Altium 365 BOM Checker
+
+This example combines both the supply and design sides of the Nexar API. It fetches Altium 365 workspaces, projects, releases and variants. You select a specific variant to retrieve the BOM of. Then you can check against Octopart data for any potential sourcing issues and see any similar parts that may be available instead.
+
+<img src="./screenshots/main_window.png"/>
+<img src="./screenshots/similar_parts.png"/>
+<img src="./screenshots/sourcing_issue.png"/>
+<img src="./screenshots/sourcing_issue2.png"/>
 
 ## Prerequisites
 
@@ -6,7 +13,9 @@ To use this example you will need the following:
 
 - A Nexar account - [Login or signup here](https://identity.nexar.com/Account/Login).
 
-- An Altium 365 workspace.
+- The "Similar Parts" add-on - [our plans and add-ons](https://nexar.com/compare-plans). If you do not have this add-on, the majority of the functionality will work, just not the checking for similar parts at the end.
+
+- An Altium 365 workspace with a project and a release of that project.
 
 - A Nexar application with the supply and design scopes enabled.
 

@@ -62,12 +62,20 @@ layout = [
         # sg.Text("", enable_events=True, key="-BOM-")
         sg.Table(
             values=[],
-            headings=["Component", "Quantity", "Description"],
+            headings=["Component", "Description", "MPN", "Manufacturer", "Quantity"],
             auto_size_columns=True,
             justification="center",
             key="-BOM TABLE-",
             enable_events=True,
             expand_x=True
+        )
+    ],
+    [
+        sg.Button(
+            button_text="Check Octopart for sourcing issues",
+            expand_x=True,
+            enable_events=True,
+            key="-CHECK BUTTON-"
         )
     ]
 ]
@@ -145,13 +153,78 @@ while True:
         
         bom = get_bom(release_id, variant_name)
         rows = []
+        queries = []
         for bomItem in bom.get("bomItems"):
             component = bomItem.get("component")
+            if not component.get("manufacturerParts"):
+                continue
+            
+            mpn = component.get("manufacturerParts")[0].get("partNumber")
+            manufacturer = component.get("manufacturerParts")[0].get("companyName")
+            queries.append({
+                "mpn": mpn,
+                "limit": 1,
+                "manufacturer": manufacturer,
+                "reference": f"{mpn}_{manufacturer}",
+            })
             rows.append([
                 component.get("name"),
+                component.get("description"),
+                component.get("manufacturerParts")[0].get("partNumber"),
+                component.get("manufacturerParts")[0].get("companyName"),
                 bomItem.get("quantity"),
-                component.get("description")
             ])
+
         window["-BOM TABLE-"].update(rows)
+    
+    elif event == "-CHECK BUTTON-":
+        if not queries:
+            continue
+
+        line_items = query_bom(queries)
+        for line_item in line_items:
+            issues = []
+            
+            lifecycle = get_spec(line_item.get("parts")[0].get("specs"), "Lifecycle Status")
+            
+            if lifecycle is None:
+                issues.append("Lifecycle status is unknown.")
+            elif lifecycle != "Production":
+                issues.append(f"Lifecycle status is {lifecycle}")
+
+            totalAvail = line_item.get("parts")[0].get("totalAvail")
+            if totalAvail < 1000:
+                issues.append(f"Total availability is {totalAvail}")
+            
+            if not issues:
+                continue
+
+            text = f"Issues with query: {line_item.get('reference')} \n\n"
+            for issue in issues:
+                text += (issue + "\n")
+                
+            n_of_similar_parts = line_item.get("parts")[0].get("counts").get("similar_parts")
+            
+            if n_of_similar_parts == 0:
+                sg.popup_ok(text, title="Sourcing Issue")
+                continue
+            
+            text += f"\nThere are {n_of_similar_parts} similar parts.\nCheck the similar parts?\n"
+            choice = sg.popup_yes_no(text, title="Sourcing Issue")
+            
+            if choice != "Yes":
+                continue
+            
+            [mpn, manufacturer] = line_item.get("reference").split("_")
+            
+            similar_parts = get_similar_parts(mpn, manufacturer)
+
+            similar_text = "Similar Parts:\n\n"
+
+            for similar_part in similar_parts:
+                similar_text += f"MPN: {similar_part.get('mpn')}\nDescription: {similar_part.get('shortDescription')}\nMedian Price /1000: {similar_part.get('medianPrice1000').get('price')} {similar_part.get('medianPrice1000').get('currency')}\nTotal Availability: {similar_part.get('totalAvail')}\nLifecycle Status: {get_spec(similar_part.get('specs'), 'Lifecycle Status')}\n\n"
+            
+            sg.popup_scrolled(similar_text, title="Similar Parts", size=(50, 10))
+
 
 window.close()

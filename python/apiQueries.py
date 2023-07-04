@@ -55,10 +55,6 @@ query release_variants ($releaseId: ID!, $variantName: String) {
             bom {
                 id
                 bomItems {
-                    bomItemInstances {
-                        designator
-                        isFitted
-                    }
                     quantity
                     component {
                         id
@@ -68,18 +64,76 @@ query release_variants ($releaseId: ID!, $variantName: String) {
                         manufacturerParts {
                             companyName
                             partNumber
-                            priority
-                            octopartId
-                            supplierParts {
-                                partNumber
-                                companyName
-                            }
                         }
                     }
                 }
             }
         }
     }
+}
+"""
+
+multi_match = """
+query MultiMatchSearch ($queries: [SupPartMatchQuery!]!){
+  supMultiMatch(queries: $queries) {
+    hits
+    reference
+    parts {
+        id
+        name
+        mpn
+        medianPrice1000 {
+            price
+            currency
+        }
+        totalAvail
+        estimatedFactoryLeadDays
+        counts
+        specs {
+            attribute {
+                name
+            }
+            value
+            units
+        }
+    }
+  }
+}
+"""
+
+similar_parts = """
+query similarParts ($mpn: String!, $manufacturer: String){
+    supMultiMatch (
+        queries: [
+            {
+                mpn: $mpn,
+                manufacturer: $manufacturer,
+                limit: 1
+            }
+        ]
+    ){
+        hits
+            parts {
+                mpn
+                similarParts {
+                    mpn
+                    shortDescription
+                    medianPrice1000 {
+                        price
+                        currency
+                    }
+                    totalAvail
+                    estimatedFactoryLeadDays
+                    specs {
+                        attribute {
+                            name
+                        }
+                        value
+                        units
+                    }
+                }
+            }
+        }
 }
 """
 
@@ -103,3 +157,22 @@ def get_bom(releaseId, variantName):
         "variantName": variantName
     })
     return response.get("desReleaseById").get("variants")[0].get("bom")
+
+def query_bom(queries):
+    response = nexar.get_query(multi_match, {
+        "queries": queries
+    })
+    return response.get("supMultiMatch")
+
+def get_similar_parts(mpn, manufacturer):
+    response = nexar.get_query(similar_parts, {
+        "mpn": mpn,
+        "manufacturer": manufacturer
+    })
+    return response.get("supMultiMatch")[0].get("parts")[0].get("similarParts")
+
+def get_spec(specs, spec_name):
+    for spec in specs:
+        if spec.get("attribute").get("name") == spec_name:
+            return spec.get("value")
+    return None
